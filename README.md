@@ -9,6 +9,7 @@ The purpose of this project is to break free from "tutorial hell" by building a 
 ## Tech Stack
 
 -   MongoDB
+-   Mongoose
 -   Shadcn UI
 -   Next.js
 -   TypeScript
