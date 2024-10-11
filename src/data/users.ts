@@ -2,8 +2,13 @@
 
 import connectDB from '@/lib/db';
 import { User, IUser } from '@/models/User';
+import { IAuthUser } from '@/types/user';
 import { redirect } from 'next/navigation';
 import { saltAndHashPassword, comparePassword } from '@/lib/password';
+import { getSession } from '@/lib/session';
+import { checkUserNameChange } from '@/lib/users';
+import { signInSchema } from '@/lib/zod';
+import { ZodError } from 'zod';
 
 interface UserExistParams {
 	email: string;
@@ -80,7 +85,6 @@ export const authUserFromDb = async (
  * @throws {Error} If the form data is missing any required fields.
  */
 export const register = async (formData: FormData) => {
-	console.log('formData:', formData);
 	const firstName = formData.get('firstName') as string;
 	const lastName = formData.get('lastName') as string;
 	const email = formData.get('email') as string;
@@ -167,8 +171,11 @@ export const getAuthUserDetails = async (email) => {
 	try {
 		await connectDB();
 		const user = await User.findOne({ email }).lean().exec();
+
+		if (!user) return null;
+
 		const userDetail = {
-			id: user?._id,
+			id: user?._id.toString(),
 			userName: user?.userName,
 			role: user?.role,
 			provider: user?.provider,
@@ -181,17 +188,322 @@ export const getAuthUserDetails = async (email) => {
 	}
 };
 
-export const editProfile = async (formData: FormData) => {
-	//await connectDB();
+/**
+ * Edits the profile of the authenticated user.
+ *
+ * @param {Object} params - The parameters for editing the user profile.
+ * @param {string} params.userName - The new username for the user.
+ * @param {string} params.firstName - The new first name for the user.
+ * @param {string} params.lastName - The new last name for the user.
+ * @returns {Promise<void>} - A promise that resolves when the user profile is updated.
+ *
+ * @example
+ * await editUserProfile({
+ *   userName: 'newUsername',
+ *   firstName: 'NewFirstName',
+ *   lastName: 'NewLastName'
+ * });
+ *
+ * @throws {Error} If the user is not authenticated, the username is already in use, or there is an error updating the user.
+ */
+export const editUserProfile = async ({
+	userName,
+	firstName,
+	lastName,
+}: {
+	userName: string;
+	firstName: string;
+	lastName: string;
+}) => {
+	const session = await getSession();
+	const user = session?.user || null;
+
+	if (!user) {
+		console.error('User not found');
+		return;
+	}
+	await connectDB();
+
+	console.log('###editUserProfile###', { userName, firstName, lastName });
+
+	const checkChangingUsername = checkUserNameChange(user, userName);
+
+	// if username or email change is not valid return
+	if (!checkChangingUsername) {
+		console.error('Username already in use');
+		return;
+	}
+
+	// update user
+	const updated = await User.updateOne(
+		{ _id: user.id },
+		{
+			$set: {
+				userName,
+				firstName,
+				lastName,
+			},
+		}
+	);
+
+	if (!updated) {
+		console.error('Error updating user');
+		return;
+	}
+	return updated;
 };
 
-export const getProfile = async ({ user }) => {
+/**
+ * Updates a user's email after validating that the email is not already in use by another user
+ * and that the provided user ID matches the current authenticated user's ID.
+ *
+ * @param {Object} params - The parameters for updating the user's email.
+ * @param {string} params.id - The ID of the user requesting the email change.
+ * @param {string} params.email - The new email to update for the user.
+ * @returns {Promise<boolean>} - Returns `true` if the email was successfully updated, `false` otherwise.
+ *
+ * @throws Will log an error if the session is invalid, the user ID does not match, the email is invalid,
+ *         the email is already in use, or if the update process fails.
+ */
+export const editUserEmail = async ({
+	id,
+	email,
+}: {
+	id: string;
+	email: string;
+}) => {
+	let isUpdated = false;
+	const session = await getSession();
+	const user = session?.user || null;
+
+	console.log('editUserEmail', user);
+
+	if (!user) {
+		console.error('User not found');
+		return isUpdated;
+	}
+
+	// comfirm user and updated userid are same before updating
+	if (user.id !== id) {
+		console.error('User not found');
+		return isUpdated;
+	}
+
+	// validate email
+	if (!email || !email.includes('@')) {
+		console.error('Invalid email');
+		return isUpdated;
+	}
+
+	await connectDB();
+
+	// check email is not currently in use by another user
+	const isEmailTaken = await User.findOne({
+		email: email,
+		_id: { $ne: user.id }, // Exclude the current user by their _id
+	}).lean();
+
+	if (isEmailTaken) {
+		console.error('Email is already in use by another user');
+		return isUpdated;
+	}
+
+	const updated = await User.updateOne(
+		{ _id: user.id },
+		{
+			$set: {
+				email: email,
+			},
+		}
+	);
+
+	if (!updated) {
+		console.error('Error updating user');
+		return isUpdated;
+	} else {
+		isUpdated = true;
+	}
+	return isUpdated;
+};
+
+/**
+ * Updates a user's password after validating the new password, ensuring the authenticated user's
+ * ID matches the provided ID, and hashing the password before storing it in the database.
+ *
+ * @param {Object} params - The parameters for updating the user's password.
+ * @param {string} params.id - The ID of the user requesting the password change.
+ * @param {string} params.password - The new password to update for the user.
+ * @returns {Promise<boolean>} - Returns `true` if the password was successfully updated, `false` otherwise.
+ *
+ * @throws Will log an error if password validation fails, the session is invalid, the user ID does not match,
+ *         or if the update process fails.
+ */
+export const editUserPassword = async ({
+	id,
+	password,
+}: {
+	id: string;
+	password: string;
+}): Promise<boolean> => {
+	let isUpdated = false;
+
+	// Validate the password using signUpSchema
+	try {
+		signInSchema.parse({ password });
+	} catch (error) {
+		if (error instanceof ZodError) {
+			console.error('Password validation failed:', error.errors);
+			return isUpdated;
+		}
+	}
+
+	// get session
+	const session = await getSession();
+	const user = session?.user || null;
+
+	// check user exists
+	if (!user) {
+		console.error('User not found');
+		return isUpdated;
+	}
+	// comfirm user and updated userid are same before updating
+	if (user.id !== id) {
+		console.error('User not found');
+		return isUpdated;
+	}
+	// hash the new password
+	const hashedPassword = await saltAndHashPassword(password);
+
+	// Update the user's password in the database
+	await connectDB();
+	await User.updateOne({ _id: id }, { $set: { password: hashedPassword } });
+	isUpdated = true;
+
+	return isUpdated;
+};
+
+/**
+ * Fetches a user from the database by ID.
+ *
+ * @param {string} id - The ID of the user to look up.
+ * @returns {Promise<IAuthUser | null>} A promise that resolves to the user object if found, or null if not.
+ *
+ * @example
+ * const user = await getProfile('1234567890');
+ * if (user) {
+ *   console.log('User found:', user);
+ * } else {
+ *   console.log('User not found');
+ *
+ * @throws {Error} If there's an issue during the database connection or querying process.
+ */
+export const getProfile = async (user: {
+	id: string;
+}): Promise<IAuthUser | null> => {
 	try {
 		await connectDB();
-		const authUser = await User.findOne({ _id: user?.id }).lean().exec();
+		const authUser = (await User.findOne({ _id: user.id })
+			.lean()
+			.exec()) as IAuthUser | null;
+		//Clean up the user object before returning it.
+		if (authUser) {
+			authUser._id = authUser._id.toString(); // Convert _id to string
+			delete authUser.__v; // Remove the __v field
+			// Add firstName and lastName if not present
+			if (!authUser.firstName) {
+				authUser.firstName = ''; // Default value or use another default
+			}
+			if (!authUser.lastName) {
+				authUser.lastName = ''; // Default value or use another default
+			}
+		}
 		return authUser;
 	} catch (error) {
 		console.error('Error fetching user from DB:', error);
 		return null;
 	}
+};
+
+export const editUserAvatar = async (
+	id: string,
+	imageUri: string
+): Promise<boolean> => {
+	let isUpdated = false;
+
+	console.log('@@editUserAvatar', id, imageUri);
+	// get session
+	const session = await getSession();
+	const user = session?.user || null;
+
+	// check user exists
+	if (!user) {
+		console.error('User not found');
+		return isUpdated;
+	}
+	// comfirm user and updated userid are same before updating
+	if (user.id !== id) {
+		console.error('User not found');
+		return isUpdated;
+	}
+
+	// Update the user's password in the database
+	await connectDB();
+	await User.updateOne({ _id: id }, { $set: { imageUri: imageUri } });
+	isUpdated = true;
+	return isUpdated;
+};
+
+/**
+ * Fetches the avatar URL of the authenticated user.
+ *
+ * @returns {Promise<string | null>} A promise that resolves to the avatar URL if found, or null if not.
+ *
+ * @throws {Error} If there's an issue during the database connection or querying process.
+ */
+export const getUserAvatar = async (): Promise<string | null> => {
+	try {
+		console.log('getUserAvatar Called');
+		const session = await getSession();
+		const user = session?.user || null;
+
+		if (!user) {
+			console.error('User not found');
+			return null;
+		}
+		await connectDB();
+		const foundUser = (await User.findOne({
+			_id: user.id,
+		})
+			.lean()
+			.exec()) as IUser | null;
+		if (!foundUser) {
+			console.error('User not found in database');
+			return null;
+		}
+
+		return foundUser.imageUri || null;
+	} catch (error) {
+		console.error('Error fetching user avatar from DB:', error);
+		return null;
+	}
+};
+
+export const removeAvatarFromDB = async (): Promise<boolean> => {
+	let isDeleted = false;
+
+	// get session
+	const session = await getSession();
+	const user = session?.user || null;
+
+	// check user exists
+	if (!user) {
+		console.error('User not found');
+		return isDeleted;
+	}
+
+	// Update the user's password in the database
+	await connectDB();
+	await User.updateOne({ _id: user.id }, { $set: { imageUri: '' } });
+	isDeleted = true;
+	return isDeleted;
 };

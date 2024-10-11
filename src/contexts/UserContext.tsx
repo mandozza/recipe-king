@@ -4,6 +4,8 @@ import { createContext, ReactNode, useContext, useState } from 'react';
 
 // Auth User interface
 interface AuthUser {
+	firstName: string;
+	lastName: string;
 	name: string;
 	email: string;
 	image: string; // URL to the user's profile image
@@ -30,6 +32,8 @@ const UserContext = createContext<UserContextType | null>(null);
 // Create the provider component
 export function UserProvider({ children }: { children: ReactNode }) {
 	const [authUser, setAuthUser] = useState({
+		firstName: '',
+		lastName: '',
 		name: '',
 		email: '',
 		image: '',

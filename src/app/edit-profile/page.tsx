@@ -1,79 +1,43 @@
 import { getSession } from '@/lib/session';
-import { editProfile, getProfile } from '@/data/users';
-import { Button } from '@/components/ui/button';
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { getProfile } from '@/data/users';
+import { redirect } from 'next/navigation';
+import { IAuthUser } from '@/types/user';
+import ChangeEmail from '@/components/blocks/ChangeEmail';
+import ChangePassword from '@/components/blocks/ChangePassword';
+import ChangeProfile from '@/components/blocks/ChangeProfile';
+import ChangeAvatar from '@/components/blocks/ChangeAvatar';
 
 const EditProfilePage = async () => {
 	const session = await getSession();
 	const user = session?.user || null;
-	console.log('###User###:', user);
+
+	// Redirect to login if user is not found
+	if (!user || !user.id) {
+		redirect('/login');
+		return null;
+	}
+
 	//get user details
-	const userDetails = await getProfile({ user });
-	console.log('###UserDetails###:', userDetails);
+	const userDetails: IAuthUser | null = await getProfile({ id: user.id });
+
+	// Handle the case where userDetails is null
+	if (!userDetails) {
+		// You can redirect to an error page or show an error message
+		redirect('/error');
+		return null;
+	}
 
 	return (
-		<Card className="mx-auto max-w-md">
-			<CardHeader>
-				<CardTitle className="text-2xl">Edit Profile</CardTitle>
-				<CardDescription>
-					Edit your profile by filling out the form below
-				</CardDescription>
-			</CardHeader>
-			<CardContent>
-				<form className="grid gap-4" action={editProfile}>
-					<div className="grid grid-cols-2 gap-4">
-						<div className="grid gap-2">
-							<Label htmlFor="firstName">First Name</Label>
-							<Input
-								id="firstName"
-								name="firstName"
-								type="text"
-								required
-							/>
-						</div>
-						<div className="grid gap-2">
-							<Label htmlFor="lastName">Last Name</Label>
-							<Input
-								id="lastName"
-								name="lastName"
-								type="text"
-								required
-							/>
-						</div>
-					</div>
-					<div className="grid gap-2">
-						<Label htmlFor="email">Email</Label>
-						<Input
-							id="email"
-							type="email"
-							name="email"
-							placeholder="jj@example.com"
-							required
-						/>
-					</div>
-					<div className="grid gap-2">
-						<Label htmlFor="password">Password</Label>
-						<Input
-							id="password"
-							type="password"
-							name="password"
-							required
-						/>
-					</div>
-					<Button type="submit" className="w-full">
-						Edit Profile
-					</Button>
-				</form>
-			</CardContent>
-		</Card>
+		<div className="mx-auto max-w-screen-md grid grid-cols-2 gap-8">
+			<ChangeProfile user={userDetails} />
+			<ChangeAvatar user={userDetails} />
+			{userDetails.provider === 'email' && (
+				<>
+					<ChangeEmail user={userDetails} />
+					<ChangePassword user={userDetails} />
+				</>
+			)}
+		</div>
 	);
 };
 export default EditProfilePage;
