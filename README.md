@@ -81,13 +81,15 @@ Currently, this project is a work in progress. The following features are implem
 -   [x] Users can create a new account.
 -   [x] Users can log in with Google, GitHub, or their credentials.
 -   [x] Users can favorite recipes.
+-   [x] Users can upload a profile picture.
+-   [x] Users can view their profile.
+-   [x] Users can edit their profile.
 
 ## Upcoming Features
 
--   [ ] Users can upload a profile picture.
+-   [ ] Update global state on edit profile changes.
+-   [ ] Users have a dashboard.
 -   [ ] Users can upload images of recipes.
--   [ ] Users can view their profile.
--   [ ] Users can edit their profile.
 -   [ ] Users can edit their recipes.
 -   [ ] Users can delete their recipes.
 -   [ ] Users can search for recipes.

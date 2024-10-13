@@ -38,7 +38,7 @@ const UserNavBlock: React.FC<UserNavBlockProps> = ({ user }) => {
 					</Link>
 				</DropdownMenuItem>
 				<DropdownMenuItem>
-					<Link href="/" className="flex">
+					<Link href="/dashboard/add-recipe" className="flex">
 						<UserPen className="mt-1 mx-2" size={14} />
 						Add Recipe
 					</Link>
