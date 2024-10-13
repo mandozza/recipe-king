@@ -15,21 +15,20 @@ import {
 } from '@/components/ui/card';
 
 import { Input } from '@/components/ui/input';
-import AlertBox from '@/components/blocks/bricks/AlertBox';
 
 interface EditAvatarProps {
 	user: IAuthUser;
+	onShowAlert: (
+		msg: { type: string; message: string },
+		error: boolean
+	) => void;
 }
 
-const ChangeAvatar: React.FC<EditAvatarProps> = ({ user }) => {
+const ChangeAvatar: React.FC<EditAvatarProps> = ({ user, onShowAlert }) => {
 	//define State
 	const fileInRef = useRef<HTMLInputElement>(null);
 	const [isUploading, setIsUploading] = useState(false);
-	const [isImageLoading, setIsImageLoading] = useState(false);
 	const [url, setUrl] = useState(user?.imageUri);
-	const [showAlert, setShowAlert] = useState(false);
-	const [isError, setIsError] = useState(false);
-	const [message, setMessage] = useState({ type: '', message: '' });
 
 	async function upload(ev: ChangeEvent<HTMLInputElement>) {
 		console.log('uploading');
@@ -37,15 +36,24 @@ const ChangeAvatar: React.FC<EditAvatarProps> = ({ user }) => {
 
 		if (input && input.files?.length && input.files.length > 0) {
 			setIsUploading(true);
-			const file = input.files[0];
-			const data = new FormData();
-			data.set('folder', 'avatars');
-			data.set('file', file);
-			data.set('user_id', user._id);
-
-			const response = await axios.post('/api/avatar/upload', data);
-			if (response.data.url) {
+			try {
+				const file = input.files[0];
+				const data = new FormData();
+				data.set('folder', 'avatars');
+				data.set('file', file);
+				data.set('user_id', user._id);
+				const response = await axios.post('/api/avatar/upload', data);
 				setUrl(response.data.url);
+				onShowAlert(
+					{ type: 'Success', message: 'Avatar Changed' },
+					false
+				);
+			} catch (error) {
+				onShowAlert(
+					{ type: 'Error', message: 'Failed to upload image' },
+					true
+				);
+			} finally {
 				setIsUploading(false);
 			}
 		}
@@ -53,28 +61,28 @@ const ChangeAvatar: React.FC<EditAvatarProps> = ({ user }) => {
 
 	async function deleteAvatar() {
 		console.log('deleting');
-		const response = await axios.post('/api/avatar/delete', {
-			user_id: user._id,
-			folder: 'avatars',
-		});
-		if (response.data.success) {
-			setUrl('');
+		try {
+			const response = await axios.post('/api/avatar/delete', {
+				user_id: user._id,
+				folder: 'avatars',
+			});
+			if (response.data.success) {
+				setUrl('');
+				onShowAlert(
+					{ type: 'Success', message: 'Avatar Deleted' },
+					false
+				);
+			}
+		} catch (error) {
+			onShowAlert(
+				{ type: 'Error', message: 'Failed to delete image' },
+				true
+			);
 		}
 	}
 
 	return (
 		<>
-			{showAlert && (
-				<AlertBox
-					title={message?.type}
-					description={message?.message}
-					classes={
-						isError
-							? 'bg-red-100 text-red-900'
-							: 'bg-green-100 text-green-900'
-					}
-				/>
-			)}
 			<Card className="mb-5">
 				<CardHeader>
 					<CardTitle>Change Avatar</CardTitle>
@@ -90,7 +98,7 @@ const ChangeAvatar: React.FC<EditAvatarProps> = ({ user }) => {
 								alt={'uploaded image'}
 								width={1024}
 								height={1024}
-								onLoad={() => setIsImageLoading(false)}
+								onLoad={() => setIsUploading(false)}
 								className="w-auto h-auto max-w-24 max-h-24"
 							/>
 						)}

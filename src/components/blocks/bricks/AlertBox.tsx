@@ -14,7 +14,7 @@ const AlertBox: React.FC<AlertBoxProps> = ({
 	classes,
 }) => {
 	return (
-		<Alert className={classes}>
+		<Alert className={`col-span-2 w-full ${classes}`}>
 			<Terminal className="h-4 w-4" />
 			<AlertTitle>{title}</AlertTitle>
 			<AlertDescription>{description}</AlertDescription>

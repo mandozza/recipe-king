@@ -2,10 +2,7 @@ import { getSession } from '@/lib/session';
 import { getProfile } from '@/data/users';
 import { redirect } from 'next/navigation';
 import { IAuthUser } from '@/types/user';
-import ChangeEmail from '@/components/blocks/ChangeEmail';
-import ChangePassword from '@/components/blocks/ChangePassword';
-import ChangeProfile from '@/components/blocks/ChangeProfile';
-import ChangeAvatar from '@/components/blocks/ChangeAvatar';
+import EditProfileBlock from '@/components/blocks/EditProfileBlock';
 
 const EditProfilePage = async () => {
 	const session = await getSession();
@@ -29,14 +26,7 @@ const EditProfilePage = async () => {
 
 	return (
 		<div className="mx-auto max-w-screen-md grid grid-cols-2 gap-8">
-			<ChangeProfile user={userDetails} />
-			<ChangeAvatar user={userDetails} />
-			{userDetails.provider === 'email' && (
-				<>
-					<ChangeEmail user={userDetails} />
-					<ChangePassword user={userDetails} />
-				</>
-			)}
+			<EditProfileBlock user={userDetails} />
 		</div>
 	);
 };

@@ -7,7 +7,7 @@ import { redirect } from 'next/navigation';
 import { saltAndHashPassword, comparePassword } from '@/lib/password';
 import { getSession } from '@/lib/session';
 import { checkUserNameChange } from '@/lib/users';
-import { signInSchema } from '@/lib/zod';
+import { changePasswordSchema } from '@/lib/zod';
 import { ZodError } from 'zod';
 
 interface UserExistParams {
@@ -349,7 +349,7 @@ export const editUserPassword = async ({
 
 	// Validate the password using signUpSchema
 	try {
-		signInSchema.parse({ password });
+		changePasswordSchema.parse({ password });
 	} catch (error) {
 		if (error instanceof ZodError) {
 			console.error('Password validation failed:', error.errors);

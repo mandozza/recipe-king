@@ -11,71 +11,65 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-
-import AlertBox from '@/components/blocks/bricks/AlertBox';
 import { editUserProfile } from '@/data/users';
 
 // Define the props interface for the EditProfile component
 interface EditProfileProps {
 	user: IAuthUser;
+	onShowAlert: (
+		msg: { type: string; message: string },
+		error: boolean
+	) => void;
 }
 
-const ChangeProfile: React.FC<EditProfileProps> = ({ user }) => {
+const ChangeProfile: React.FC<EditProfileProps> = ({ user, onShowAlert }) => {
 	//define State
 	const [isLoading, setIsLoading] = useState(false);
-	const [showAlert, setShowAlert] = useState(false);
-	const [isError, setIsError] = useState(false);
-	const [message, setMessage] = useState({ type: '', message: '' });
 	const [userName, setUserName] = useState(user?.userName);
 	const [firstName, setFirstName] = useState(user?.firstName);
 	const [lastName, setLastName] = useState(user?.lastName);
 
 	const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
-		setIsError(false);
-		setShowAlert(false);
+
 		//confirm all values are not empty
 		if (!userName || !firstName || !lastName) {
-			setIsError(true);
-			setMessage({ type: 'error', message: 'All Fields are required' });
+			onShowAlert(
+				{
+					type: 'Error',
+					message:
+						'Please ensure Username, First Name and Last Name all have values',
+				},
+				true
+			);
 			return;
 		}
-		//update profile
-		const isUpdated = await editUserProfile({
-			userName,
-			firstName,
-			lastName,
-		});
-		isLoading && setIsLoading(false);
-		if (isUpdated) {
-			setIsError(false);
-			setMessage({
-				type: 'success',
-				message: 'Profile updated successfully',
+
+		setIsLoading(true);
+		try {
+			await editUserProfile({
+				userName,
+				firstName,
+				lastName,
 			});
-		} else {
-			setIsError(true);
-			setMessage({
-				type: 'error',
-				message: 'Failed to update Profile',
-			});
+			isLoading && setIsLoading(false);
+			onShowAlert(
+				{ type: 'Success', message: 'Profile updated successfully' },
+				false
+			);
+		} catch (error) {
+			isLoading && setIsLoading(false);
+			onShowAlert(
+				{ type: 'Error', message: 'Failed to update Profile' },
+				true
+			);
+		} finally {
+			setIsLoading(false);
 		}
-		setShowAlert(true);
 	};
 
 	return (
 		<>
-			{showAlert && (
-				<AlertBox
-					title={message?.type}
-					description={message?.message}
-					classes={
-						isError
-							? 'bg-red-100 text-red-900'
-							: 'bg-green-100 text-green-900'
-					}
-				/>
-			)}
 			<Card className="mx-auto max-w-lg mb-5">
 				<CardHeader>
 					<CardTitle className="text-2xl">Edit Profile</CardTitle>
